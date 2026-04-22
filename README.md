@@ -10,17 +10,17 @@ deployed automatically to [GitHub Pages](https://pages.github.com/).
 
 ## Running locally
 
-**Prerequisites:** Ruby 3.x and Bundler.
+**Prerequisites:** [Docker Desktop](https://www.docker.com/products/docker-desktop/)
 
 ```bash
-# Install dependencies
-bundle install
-
-# Start the local dev server (hot-reload enabled)
-bundle exec jekyll serve
+docker compose up
 ```
 
 Then open <http://localhost:4000> in your browser.
+The site live-reloads automatically when you save a file.
+
+> First run will take a minute to pull the image and install gems.
+> Subsequent runs are fast thanks to the cached gem volume.
 
 ---
 
