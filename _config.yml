@@ -7,7 +7,7 @@ theme: jekyll-theme-chirpy
 lang: en
 
 # Change to your timezone › https://zones.arilyn.cc
-timezone: Europe/Amsterdam
+timezone: Africa/Johannesburg
 
 # jekyll-seo-tag settings › https://github.com/jekyll/jekyll-seo-tag/blob/master/docs/usage.md
 # ↓ --------------------------
@@ -26,11 +26,10 @@ url: "https://jacovlogg.github.io"
 github:
   username: jacovlogg
 
-twitter:
-  username: # fill in if you have one
+
 
 social:
-  name: Jacov
+  name: Jaco van Loggerenberg
   email: # fill in your email address
   links:
     - https://github.com/jacovlogg
@@ -56,7 +55,7 @@ theme_mode: # [light | dark]
 cdn:
 
 # the avatar on sidebar, support local or CORS resources
-avatar:
+avatar: /assets/img/avatar.png
 
 # The URL of the site-wide social preview image used in SEO `og:image` meta tag.
 social_preview_image: # string, local or CORS resources
