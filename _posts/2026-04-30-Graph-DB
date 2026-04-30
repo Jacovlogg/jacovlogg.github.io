@@ -1,0 +1,62 @@
+---
+title: "Using a Graph DB for Access Control"
+date: 2026-04-30 
+categories: [Access Control]
+tags: [graph db, access control, authorization, relationship-based access control]
+---
+
+# Why
+
+When the business domain is heavily **relationship-based**. Different users/actors relate to the same entity but are interested in different aspects or view the entity from a different perspective. This is where the Graph DB shines, since you can always add a new edge(relationship) and a new node and connect it up, no migrations. This can build upon a chain of relationships.
+
+The other reason is **relationship depth**. The business domain we work with naturally has complex relationships, where a user might do a query and they should see entities based on a chain of parents, not just because they directly have a relationship to that entity. This again is where a graph DB shines above something like a relational table-based DB or a document DB. You would have to do multiple joins across tables, where a Graph you are traversing from node to node. Depending on the setup, this is more cost-effective.
+
+# How we approach modelling
+
+So the question is, what becomes nodes and edges? We already had a schema we identified many to many relationships as actual entities and saw those entities are domain objects. This is not convention or needed when it comes so creating a graph but it’s important to note in the way we viewed our schema in a graph. So our edges just became cardinal relationships. Those edges are important since that is what we used to traverse specific paths. 
+
+Permissions comes into light since function could be an edge as well. To read, write, edit, update, whatever. We decided to move this to our paths, but you can for sure model your graph in that way, it is definitely the exemplary way of doing it.
+
+Paths are essentially the graph query. We can define set paths and assign them to users or user groups outside of the Graph DB, and then those are the select ways the user can query the graph so that it is not just open. This is important since there are many connections across entities, and we don’t want to expose things the user shouldn’t be able to access.
+
+# Implementation options we considered
+
+#### Cosmo DB
+
+> Azure Cosmos DB for Apache Gremlin is a fully managed graph database service that enables you to store, query, and traverse large-scale graph data using the Gremlin query language. This API is built on the open-source Apache TinkerPop framework and is designed for applications that need to model and analyze complex relationships between data points. This API is designed for solutions such as social networks, recommendation engines, and connected devices.
+> 
+
+#### Neo4j
+
+> Battle tested for performance, Neo4j Graph Database is the only graph database that is trusted by enterprises for its speed, security, and scalability to support the most challenging transactional and analytical workloads.
+> 
+
+#### Apache AGE
+
+> **Apache AGE™** is a PostgreSQL that provides graph database functionality. The goal of **Apache AGE™** is to provide graph data processing and analytics capability to all relational databases. Through Apache AGE, PostgreSQL users will gain access to graph query modeling within the existing relational database. Users can read and write graph data in nodes and edges. They can also use various algorithms such as variable length and edge traversal when analyzing data.
+> 
+
+#### Open FGA
+> OpenFGA is a scalable open source authorization system for developers that allows implementing authorization for any kind of application and smoothly evolve as complexity increases over time. It is owned by the [Cloud Native Computing Foundation](https://cncf.io/).
+
+Inspired by [Google’s Zanzibar](https://zanzibar.academy/), Google’s internal authorization system,OpenFGA relies on Relationship-Based Access Control, which allows developers to easily implement Role-Based Access Control and provides additional capabilities to implement Attribute-Based Access Control. You can learn more about different authorization concepts [here](https://openfga.dev/docs/authorization-concepts).
+> 
+
+# What we ended up choosing
+
+We started with cosmos graph DB but it had no local dev setup at the time and we want something more battle tested and pivoted to Neo4j. 
+
+Neo4j was a breath of fresh are moving away from Gremlin to Cypher. Cypher feels like the more natural way to talk to a Graph. We got far along and then realised that when it comes to paging, we are going to be moving around a large amount of ids but only use a small percentage when paging. 
+
+So you sit with either filter on the Read Db first and then check which are authed and then might need to fetch more and so on to fill the required page. The other option is what we did initially was return all the ids the user can see for that entity type and then only resolve on the filtered ones. 
+Either way it felt like a bottle neck. 
+
+So we endend up actually moving our MS SQL DB to Postgres and have AGE in Postgres. That allowed us to do a single query that checks the graph and then takes those Ids and resolves them at the appropriate read table. 
+
+Open FGA would be a good fit but still holds the same contraints as Neo4j where we would need to move around authorised Ids or batch key and fill in pages. 
+
+# Conclusion
+
+Ended up using Apache AGE since we can auth and page in a single query. 
+The Cypher is defined outside the Graph and these “Paths” can hold Permissions as well. 
+At the moment, I have only tested with the end of the tree being 10 000 nodes and the tree being 10 hops deep. It performed satisfactorily; with more testing under a heavier load, we will see how performance gets impacted. If it is heavily impacted I am more keen to test OpenFga than revert back to Neo.

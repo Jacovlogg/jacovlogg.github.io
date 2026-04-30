@@ -1,14 +1,19 @@
 ---
-title: "The Platform"
+
+title: ""
 date: 2026-04-23
-mermaid: true
----
+----------------
 
 ## The Brief
 
-The platform hosts a Suite of Products. It is a multi-tenant, white-label service where subscribers can choose which products they want to subscribe to.
+The system hosts a Suite of Products. It is a multi-tenant, white-label service where subscribers can choose which products they want to subscribe to.
 
 A subscriber purchases a **Subscription**, which provisions a **Workspace**. The Workspace is a tenant-scoped runtime environment with its own custom URL and branding.
+
+There are two primary applications:
+
+* **Portal** (`utilityconnect.io`) – used for subscription, onboarding, and management
+* **Workspace** (`utilityconnect.io/{workspace}`) – tenant runtime where products are used
 
 Within a Workspace, the subscriber can:
 
@@ -17,29 +22,20 @@ Within a Workspace, the subscriber can:
 * Onboard and manage their clients (represented as LegalEntities)
 * Control access to data and functionality
 
-The platform is responsible for:
+The system is built on the **Connect Platform (CXP)** which provides shared infrastructure independent of the Suite domain.
 
-* Subscription management
-* Workspace provisioning
-* Identity
-* Graph-based access control
-
-The Workspace is responsible for:
-
-* Hosting products
-* Executing business logic
-* Managing relationships and access via the graph
+---
 
 ### Business Overview
 
 ```mermaid
 flowchart TD
-    Platform[Platform]
+    Portal[Portal]
     Subscription[Subscription]
     Workspace[Workspace]
     Products[Enabled Products]
 
-    Platform --> Subscription
+    Portal --> Subscription
     Subscription --> Workspace
     Workspace --> Products
 ```
@@ -48,19 +44,34 @@ flowchart TD
 
 ## Definitions
 
-### Platform
+### Portal
 
-The global system responsible for identity, subscription management, workspace provisioning, and graph infrastructure.
+The public and administrative application responsible for:
+
+* Subscription management
+* Workspace provisioning
+* Billing and onboarding
 
 ### Subscription
 
-A platform-level commercial entitlement.
+A commercial entitlement managed in the Portal.
 Each Subscription provisions exactly one Workspace.
 
 ### Workspace
 
-A tenant-scoped runtime environment created for a Subscription.
+A tenant-scoped runtime environment created from a Subscription.
 This is the boundary for all business data and access control.
+
+### Connect Platform (CXP)
+
+The shared infrastructure layer that provides:
+
+* Identity
+* Graph services
+* Provisioning
+* Core abstractions
+
+CXP is independent of the Suite business domain.
 
 ### Suite
 
@@ -74,18 +85,6 @@ A shared schema and contract layer that defines:
 
 A module that provides business functionality.
 Products extend the Suite Schema and operate within a Workspace.
-
-### Platform Services
-
-* Identity
-* Subscription
-* Graph
-
-### Suite Services
-
-* Shared domain logic
-* Entity creation
-* Invariants enforcement
 
 ### LegalEntity
 
@@ -112,6 +111,8 @@ Defines permissions and traversable paths within a Realm.
 ### Membership
 
 Links a User to a RealmRole within a Realm.
+
+---
 
 ### Actor Model
 
@@ -146,21 +147,49 @@ flowchart TD
 * Event Store is the source of truth
 * Graph is the relationship and authorization index
 * Read tables are projections only
-* Graph access is only through Platform Services
+* Graph access is only through CXP services
 * All shared entities must be created via Suite Services
+
+---
 
 ### Layered Architecture
 
 ```mermaid
+---
+title: Portal 
+---
 flowchart TB
-    Platform[Platform Layer]
-    Suite[Suite Layer]
-    Product[Product Layer]
-
-    Platform --> Suite
-    Suite --> Product
+    Portal --> Subscription
+    Subscription --> Workspace 
+    Subscription --> Products
+  
 ```
 
+---
+```mermaid
+---
+title: Workspace 
+---
+flowchart TB
+    Workspace --> Realm
+    Realm --> Products
+    Products --> Features
+
+  
+```
+---
+
+---
+```mermaid
+---
+title: Code 
+---
+flowchart TB
+    Cxp  --> Suite
+    Suite --> Products
+
+  
+```
 ---
 
 ## Implications
@@ -174,13 +203,8 @@ flowchart TB
   * Event streams (sync)
   * Read models (read)
 * The system must support modular frontend composition
-* A single Gateway API is used
-* A single frontend application exposes all products
-* Platform layer exists above the Suite for:
-
-  * User management
-  * Subscription management
-  * Workspace provisioning
+* A single Workspace Gateway API is used
+* Portal and Workspace are separate applications
 * Workspaces are isolated (initial strategy: schema-per-workspace)
 
 ---
@@ -205,19 +229,23 @@ flowchart TB
 ```mermaid
 sequenceDiagram
     participant User
-    participant Gateway
+    participant WorkspaceApp
+    participant GatewayAPI
+    participant ProductService
     participant SuiteService
     participant Graph
-    participant ProductDB
 
-    User->>Gateway: Query
-    Gateway->>SuiteService: Request (userId, entityType)
-    SuiteService->>Graph: Get authorized scope
-    Graph-->>SuiteService: IDs / constraints
-    SuiteService-->>Gateway: Scope
-    Gateway->>ProductDB: Query with filters + IDs
-    ProductDB-->>Gateway: Results
-    Gateway-->>User: Response
+    User->>WorkspaceApp: Query
+    WorkspaceApp->>GatewayAPI: Request
+    GatewayAPI->>ProductService: Forward request
+    ProductService->>SuiteService: Request authorized scope
+    SuiteService->>Graph: Get accessible IDs
+    Graph-->>SuiteService: Authorized IDs
+    SuiteService-->>ProductService: Authorized IDs
+    ProductService->>ProductService: Resolve entities (table + filters + IDs)
+    ProductService-->>GatewayAPI: Results
+    GatewayAPI-->>WorkspaceApp: Response
+    WorkspaceApp-->>User: Response
 ```
 
 ---
@@ -248,20 +276,23 @@ sequenceDiagram
 
 ### Frontend
 
-* Single Blazor application (Auto render mode: SSR + WASM)
-* Uses BFF pattern
-* Products provide Razor Class Libraries (RCLs)
-* Dynamic component loading for product UI
-* Gateway API determines:
+#### Portal
 
-  * user context
-  * accessible products
+* Handles subscription and onboarding
+* Manages workspace provisioning
+
+#### Workspace App
+
+* Hosts products
+* Executes business logic
+* Uses Gateway API for all operations
 
 ---
 
 ### Identity
 
-* Keycloak
+* Managed via CXP
+* Keycloak integration
 * JWT-based authentication
 
 ---
@@ -285,19 +316,13 @@ flowchart TD
     Key --> Link
 ```
 
-#### Rules:
-
-* Graph per Workspace
-* Subscriber has full access
-* Realms owned by LegalEntities
-* Roles define permissions and traversable paths
-
 ---
 
 ### Gateway
 
 * GraphQL (HotChocolate)
-* Aggregates platform + suite + product schemas
+* Lives in Workspace layer
+* Aggregates suite + product schemas
 
 ---
 
@@ -306,7 +331,7 @@ flowchart TD
 * Create shared entities
 * Enforce invariants
 * Generate IDs
-* Call Platform Services (graph)
+* Call CXP services
 
 ---
 
@@ -322,13 +347,13 @@ flowchart TD
 
 ```mermaid
 flowchart LR
-    PlatformDB[(Platform DB)]
+    ControlPlaneDB[(Portal DB)]
     WorkspaceDB[(Workspace DB)]
     GraphDB[(Graph)]
     EventStore[(Event Store)]
     ReadModels[(Read Models)]
 
-    PlatformDB --> WorkspaceDB
+    ControlPlaneDB --> WorkspaceDB
     WorkspaceDB --> EventStore
     EventStore --> ReadModels
     GraphDB --> ReadModels
@@ -342,7 +367,7 @@ flowchart LR
 
 ## Schema
 
-### Platform Scoped
+### Portal Scoped
 
 * Platform User
 * Subscription
@@ -377,19 +402,20 @@ flowchart LR
 
 ## Data Ownership
 
-| Layer       | Owns                                         |
-| ----------- | -------------------------------------------- |
-| Platform    | Users, Subscriptions, Workspace provisioning |
-| Suite       | Shared entities, invariants, IDs             |
-| Product     | Business logic, projections, UI              |
-| Graph       | Relationships, access control                |
-| Event Store | Source of truth                              |
+| Layer       | Owns                               |
+| ----------- | ---------------------------------- |
+| Portal      | Users, Subscriptions, provisioning |
+| Suite       | Shared entities, invariants, IDs   |
+| Product     | Business logic, projections, UI    |
+| Graph       | Relationships, access control      |
+| Event Store | Source of truth                    |
 
 ---
 
 ## Notes
 
-* Platform handles provisioning and identity
-* Workspace handles runtime business logic
+* Portal handles onboarding and subscription
+* Workspace handles runtime operations
+* CXP provides shared infrastructure
 * Graph enforces access control
 * Products operate within strict boundaries
